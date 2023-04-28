@@ -21,8 +21,9 @@ fun main(args: Array<String>) {
 var hadError = false
 var source: String? = null
 
-private fun run(source: String) {
-    val scanner = Scanner(source)
+private fun run(src: String) {
+    source = src
+    val scanner = Scanner(src)
     println(scanner.scanTokens())
 }
 
@@ -43,8 +44,26 @@ fun runPrompt() {
     }
 }
 
+
 fun loxError(pos: Position, message: String) {
-    println("$pos: $message")
+    var err = "Error: $message\n\n"
+    val prefix = "    ${pos.start.line} | "
+    if (source != null) {
+        val start = pos.start.offset - pos.start.col
+        val newlineIdx = source!!.indexOf('\n', start)
+        val errorLine = if (newlineIdx >= start) {
+            source!!.substring(start..newlineIdx)
+        } else {
+            source!!.substring(start)
+        }
+        err += "$prefix$errorLine"
+    }
+    err += '\n'
+    for (i in 0 until pos.start.col + prefix.length) {
+        err += " "
+    }
+    err += "^-- Here.\n"
+    println(err)
     hadError = true
 }
 

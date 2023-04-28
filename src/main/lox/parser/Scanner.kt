@@ -34,7 +34,7 @@ class Scanner(private val source: String) {
     fun scanTokens(): List<Token> {
         while (!isAtEnd()) {
             start = current;
-            scanToken();
+            scanToken()
         }
 
         this.tokens.add(Token(TokenType.EOF, "", null, point(current)))
@@ -111,7 +111,7 @@ class Scanner(private val source: String) {
                 } else if (c.isLetter()) {
                     identifier()
                 } else {
-                    loxError(pos(), "Unexpected character")
+                    loxError(pos(), "Unexpected character '$c'.")
                     return
                 }
             }
