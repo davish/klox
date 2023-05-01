@@ -18,54 +18,30 @@ fun main(args: Array<String>) {
 }
 
 
-var hadError = false
-var source: String? = null
-
-private fun run(src: String) {
-    source = src
-    val scanner = Scanner(src)
+private fun run(src: String, reporter: ErrorReporter) {
+    val scanner = Scanner(src, reporter)
     println(scanner.scanTokens())
 }
 
-fun runFile(path: String) {
+private fun runFile(path: String) {
     val bytes = Files.readAllBytes(Paths.get(path))
-    run(String(bytes, Charset.defaultCharset()))
-    if (hadError) exitProcess(65)
+    val source = String(bytes, Charset.defaultCharset());
+    val reporter = ErrorReporter(source)
+    run(source, reporter)
+    reporter.printAllErrors()
+    if (reporter.hadError) exitProcess(65)
 }
 
-fun runPrompt() {
+private fun runPrompt() {
+    println("***klox REPL***\nStart typing below.")
     while (true) {
+        print("> ")
         val line = readlnOrNull() ?: return
-        if (line == "exit()") {
+        if (line == "exit()" || line == "quit") {
             return
         }
-        run(line)
-        hadError = false
+        val reporter = ErrorReporter(line)
+        run(line, reporter)
+        reporter.printAllErrors()
     }
 }
-
-
-fun loxError(pos: Position, message: String) {
-    var err = "Error: $message\n\n"
-    val prefix = "    ${pos.start.line} | "
-    if (source != null) {
-        val start = pos.start.offset - pos.start.col
-        val newlineIdx = source!!.indexOf('\n', start)
-        val errorLine = if (newlineIdx >= start) {
-            source!!.substring(start..newlineIdx)
-        } else {
-            source!!.substring(start)
-        }
-        err += "$prefix$errorLine"
-    }
-    err += '\n'
-    for (i in 0 until pos.start.col + prefix.length) {
-        err += " "
-    }
-    err += "^-- Here.\n"
-    println(err)
-    hadError = true
-}
-
-
-

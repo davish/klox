@@ -1,12 +1,12 @@
 package parser
 
+import ErrorReporter
 import Position
 import at
-import loxError
 import point
 import startLocation
 
-class Scanner(private val source: String) {
+class Scanner(private val source: String, private val reporter: ErrorReporter) {
     private val tokens: MutableList<Token> = ArrayList()
 
     private var start = startLocation()
@@ -106,29 +106,33 @@ class Scanner(private val source: String) {
             '"' -> string()
 
             else -> {
-                if (c.isDigit()) {
+                if (isDigit(c)) {
                     number()
-                } else if (c.isLetter()) {
+                } else if (isAlpha(c)) {
                     identifier()
                 } else {
-                    loxError(pos(), "Unexpected character '$c'.")
-                    return
+                    reporter.error(pos(), "Unexpected character '$c'.")
                 }
             }
         }
     }
 
+    private fun isDigit(c: Char) = c in '0'..'9';
+    private fun isAlpha(c: Char) = (c in 'a'..'z') ||
+            (c in 'A'..'Z') ||
+            c == '_';
 
-    private fun thisChar() = source.at(current)
+    private fun isAlphaNumeric(c: Char) = isDigit(c) || isAlpha(c)
+
     private fun advance(): Char {
-        val c = thisChar()
-        current = current.increment(thisChar())
+        val c = source.at(current)
+        current = current.increment(source.at(current))
         return c
     }
 
     private fun match(expected: Char): Boolean {
         if (isAtEnd()) return false
-        if (thisChar() != expected) return false
+        if (source.at(current) != expected) return false
         advance()
         return true;
     }
@@ -149,7 +153,7 @@ class Scanner(private val source: String) {
             advance()
         }
         if (isAtEnd()) {
-            loxError(point(current), "Unterminated string.")
+            reporter.error(point(current), "Unterminated string.")
             return
         }
         advance()
@@ -158,18 +162,20 @@ class Scanner(private val source: String) {
     }
 
     private fun number() {
-        while (peek().isDigit()) advance()
-        if (peek() == '.' && peekNext().isDigit()) {
+        while (isDigit(peek())) advance()
+        if (peek() == '.' && isDigit(peekNext())) {
             advance();
-            while (peek().isDigit()) advance()
+            while (isDigit(peek())) advance()
         }
         addToken(TokenType.NUMBER, source.at(pos()).toDouble())
     }
 
     private fun identifier() {
-        while (peek().isLetterOrDigit()) advance()
+        while (isAlphaNumeric(peek())) {
+            advance()
+        }
         val text = source.at(pos())
-        addToken(keywords[text] ?: TokenType.IDENTIFIER)
+        addToken(keywords[text.lowercase()] ?: TokenType.IDENTIFIER)
     }
 
     private fun addToken(type: TokenType) {
