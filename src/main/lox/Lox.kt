@@ -6,6 +6,19 @@ import kotlin.system.exitProcess
 
 
 fun main(args: Array<String>) {
+
+//    fun pos(idx: Int) = Position(Offset(idx), Offset(idx))
+//    val expression = Expr.BinaryOp(
+//        Expr.UnaryOp(
+//            Token(TokenType.MINUS, "-", null, pos(1)),
+//            Expr.Literal(123)
+//        ),
+//        Token(TokenType.STAR, "*", null, pos(1)),
+//        Expr.Grouping(Expr.Literal(45.67))
+//    )
+//    println(ast.print(expression))
+//    return
+
     when {
         args.size > 1 -> {
             println("Usage: klox [script]")
