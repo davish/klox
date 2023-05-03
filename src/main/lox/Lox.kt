@@ -1,3 +1,4 @@
+import parser.Parser
 import parser.Scanner
 import java.nio.charset.Charset
 import java.nio.file.Files
@@ -33,7 +34,15 @@ fun main(args: Array<String>) {
 
 private fun run(src: String, reporter: ErrorReporter) {
     val scanner = Scanner(src, reporter)
-    println(scanner.scanTokens())
+    val tokens = scanner.scanTokens()
+    val parser = Parser(tokens, reporter)
+    val expression = parser.parse()
+
+    reporter.printAllErrors()
+    if (reporter.hadError) return;
+    if (expression == null) return
+
+    println(ast.print(expression))
 }
 
 private fun runFile(path: String) {
@@ -55,6 +64,5 @@ private fun runPrompt() {
         }
         val reporter = ErrorReporter(line)
         run(line, reporter)
-        reporter.printAllErrors()
     }
 }
