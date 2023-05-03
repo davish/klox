@@ -39,7 +39,7 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
     }
 
     private fun parseError(token: Token, message: String): ParseError {
-        reporter.error(token.position, message)
+        reporter.parseError(token.position, message)
         return ParseError()
     }
 
@@ -55,10 +55,18 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
         }
     }
 
-    fun parse(): Expr? = try {
-        expression()
-    } catch (error: ParseError) {
-        null
+    fun parse(): Expr? {
+        val result = try {
+            expression()
+        } catch (error: ParseError) {
+            null
+        }
+
+        if (peek().type != TokenType.EOF) {
+            reporter.parseError(peek().position, "Unknown tokens at the end of the input.")
+        }
+
+        return result
     }
 
 

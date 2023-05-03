@@ -18,7 +18,7 @@ fun within(offset: Offset, source: String): Location {
 }
 
 
-class LoxError(val position: Position, message: String) : RuntimeException(message) {
+open class LoxError(val position: Position, message: String) : RuntimeException(message) {
     fun display(source: String): String {
         var err = "Error: $message\n\n"
         val loc = within(position.start, source)
@@ -42,20 +42,28 @@ class LoxError(val position: Position, message: String) : RuntimeException(messa
 }
 
 class ErrorReporter(private val source: String) {
-    private val errors: MutableList<LoxError> = ArrayList()
+    private val parseErrors: MutableList<LoxError> = ArrayList()
+    private val runtimeErrors: MutableList<LoxError> = ArrayList()
 
     val hadError: Boolean
-        get() = errors.size != 0
+        get() = parseErrors.size != 0
 
+    val hadRuntimeError: Boolean
+        get() = runtimeErrors.size != 0
 
-    fun error(position: Position, message: String) {
-        errors.add(LoxError(position, message))
+    fun runtimeError(error: LoxError) {
+        runtimeErrors.add(error)
     }
+
+    fun parseError(position: Position, message: String) {
+        parseErrors.add(LoxError(position, message))
+    }
+
 
     private fun deduplicateErrors(): List<LoxError> {
         var lastOffset = -2
         val result: MutableList<LoxError> = ArrayList()
-        for (error in errors) {
+        for (error in parseErrors) {
             if (error.position.start.offset > lastOffset + 1) {
                 result.add(error)
             }

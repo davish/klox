@@ -1,3 +1,4 @@
+import interpreter.Interpreter
 import parser.Parser
 import parser.Scanner
 import java.nio.charset.Charset
@@ -32,9 +33,10 @@ fun main(args: Array<String>) {
 }
 
 
-private fun run(src: String, reporter: ErrorReporter) {
+private fun run(src: String, reporter: ErrorReporter, interpreter: Interpreter) {
     val scanner = Scanner(src, reporter)
     val tokens = scanner.scanTokens()
+//    println(tokens)
     val parser = Parser(tokens, reporter)
     val expression = parser.parse()
 
@@ -42,20 +44,25 @@ private fun run(src: String, reporter: ErrorReporter) {
     if (reporter.hadError) return;
     if (expression == null) return
 
-    println(ast.print(expression))
+//    println(ast.print(expression))
+    interpreter.interpret(expression)
 }
 
 private fun runFile(path: String) {
     val bytes = Files.readAllBytes(Paths.get(path))
     val source = String(bytes, Charset.defaultCharset());
+    val interpreter = Interpreter()
     val reporter = ErrorReporter(source)
-    run(source, reporter)
+    interpreter.reporter = reporter
+    run(source, reporter, interpreter)
     reporter.printAllErrors()
     if (reporter.hadError) exitProcess(65)
+    if (reporter.hadRuntimeError) exitProcess(70)
 }
 
 private fun runPrompt() {
     println("***klox REPL***\nStart typing below.")
+    val interpreter = Interpreter()
     while (true) {
         print("> ")
         val line = readlnOrNull() ?: return
@@ -63,6 +70,7 @@ private fun runPrompt() {
             return
         }
         val reporter = ErrorReporter(line)
-        run(line, reporter)
+        interpreter.reporter = reporter
+        run(line, reporter, interpreter)
     }
 }
