@@ -10,6 +10,8 @@ fun prettyPrint(expr: Expr): String = when (expr) {
     }
 
     is Expr.UnaryOp -> "${expr.operator.lexeme}${prettyPrint(expr.right)}"
+    is Expr.Variable -> expr.name.lexeme
+    is Expr.Assign -> "${expr.name} = ${prettyPrint(expr.value)}"
 }
 
 private fun sexp(label: String, vararg exprs: Expr): String {
@@ -21,4 +23,6 @@ fun print(expr: Expr): String = when (expr) {
     is Expr.Grouping -> sexp("group", expr.expression)
     is Expr.Literal -> if (expr.value == null) "nil" else expr.value.toString()
     is Expr.UnaryOp -> sexp(expr.operator.lexeme, expr.right)
+    is Expr.Variable -> expr.name.lexeme
+    is Expr.Assign -> sexp("assign-${expr.name}", expr.value)
 }

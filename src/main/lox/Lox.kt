@@ -1,3 +1,4 @@
+import ast.Stmt
 import interpreter.Interpreter
 import parser.Parser
 import parser.Scanner
@@ -8,19 +9,6 @@ import kotlin.system.exitProcess
 
 
 fun main(args: Array<String>) {
-
-//    fun pos(idx: Int) = Position(Offset(idx), Offset(idx))
-//    val expression = Expr.BinaryOp(
-//        Expr.UnaryOp(
-//            Token(TokenType.MINUS, "-", null, pos(1)),
-//            Expr.Literal(123)
-//        ),
-//        Token(TokenType.STAR, "*", null, pos(1)),
-//        Expr.Grouping(Expr.Literal(45.67))
-//    )
-//    println(ast.print(expression))
-//    return
-
     when {
         args.size > 1 -> {
             println("Usage: klox [script]")
@@ -32,32 +20,42 @@ fun main(args: Array<String>) {
     }
 }
 
-
-private fun run(src: String, reporter: ErrorReporter, interpreter: Interpreter) {
-    val scanner = Scanner(src, reporter)
+private fun run(src: String, interpreter: Interpreter, parseReporter: ErrorReporter, runtimeReporter: ErrorReporter) {
+    /// Lexing
+    val scanner = Scanner(src, parseReporter)
     val tokens = scanner.scanTokens()
-//    println(tokens)
-    val parser = Parser(tokens, reporter)
-    val expression = parser.parse()
 
-    reporter.printAllErrors()
-    if (reporter.hadError) return;
-    if (expression == null) return
+    /// Parsing
+    val parser = Parser(tokens, parseReporter)
+    val statements = parser.parse()
 
-//    println(ast.print(expression))
-    interpreter.interpret(expression)
+    /// If parsing wasn't successful, bail here.
+    parseReporter.printAllErrors()
+    if (parseReporter.hadError) return
+
+    interpreter.reporter = runtimeReporter
+    /// Interpret!
+    if (statements.size == 1 && statements[0] is Stmt.Expression) {
+        statements[0].also {
+            if (it is Stmt.Expression) {
+                interpreter.evaluateToStr(it.expression)?.let { str -> println(str) }
+            }
+        }
+    }
+    interpreter.interpret(statements)
+    runtimeReporter.printAllErrors()
 }
 
 private fun runFile(path: String) {
     val bytes = Files.readAllBytes(Paths.get(path))
     val source = String(bytes, Charset.defaultCharset());
     val interpreter = Interpreter()
-    val reporter = ErrorReporter(source)
-    interpreter.reporter = reporter
-    run(source, reporter, interpreter)
-    reporter.printAllErrors()
-    if (reporter.hadError) exitProcess(65)
-    if (reporter.hadRuntimeError) exitProcess(70)
+    val parseReporter = ErrorReporter(source)
+    val runtimeReporter = ErrorReporter(source)
+    run(source, interpreter, parseReporter, runtimeReporter)
+    if (parseReporter.hadError) exitProcess(65)
+    if (runtimeReporter.hadError) exitProcess(70)
+
 }
 
 private fun runPrompt() {
@@ -69,8 +67,8 @@ private fun runPrompt() {
         if (line == "exit()" || line == "quit") {
             return
         }
-        val reporter = ErrorReporter(line)
-        interpreter.reporter = reporter
-        run(line, reporter, interpreter)
+        val parseReporter = ErrorReporter(line)
+        val runtimeReporter = ErrorReporter(line)
+        run(line, interpreter, parseReporter, runtimeReporter)
     }
 }

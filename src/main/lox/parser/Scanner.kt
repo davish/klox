@@ -111,7 +111,7 @@ class Scanner(private val source: String, private val reporter: ErrorReporter) {
                 } else if (isAlpha(c)) {
                     identifier()
                 } else {
-                    reporter.parseError(pos(), "Unexpected character '$c'.")
+                    reporter.error(pos(), "Unexpected character '$c'.")
                 }
             }
         }
@@ -153,7 +153,7 @@ class Scanner(private val source: String, private val reporter: ErrorReporter) {
             advance()
         }
         if (isAtEnd()) {
-            reporter.parseError(point(current), "Unterminated string.")
+            reporter.error(point(current), "Unterminated string.")
             return
         }
         advance()

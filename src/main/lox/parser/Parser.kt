@@ -2,6 +2,7 @@ package parser
 
 import ErrorReporter
 import ast.Expr
+import ast.Stmt
 
 class Parser(private val tokens: List<Token>, private val reporter: ErrorReporter) {
     private var current = 0
@@ -39,7 +40,7 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
     }
 
     private fun parseError(token: Token, message: String): ParseError {
-        reporter.parseError(token.position, message)
+        reporter.error(token.position, message)
         return ParseError()
     }
 
@@ -55,25 +56,96 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
         }
     }
 
-    fun parse(): Expr? {
-        val result = try {
-            expression()
-        } catch (error: ParseError) {
-            null
+    fun parse(): List<Stmt> {
+        val statements: MutableList<Stmt> = ArrayList()
+
+        while (!isAtEnd()) {
+            val decl = declaration()
+            if (decl != null) statements.add(decl)
         }
 
-        if (peek().type != TokenType.EOF) {
-            reporter.parseError(peek().position, "Unknown tokens at the end of the input.")
+        if (statements.isEmpty()) {
+            reporter.clear()
+            current = 0
+            try {
+                val expr = expression()
+                statements.add(Stmt.Expression(expr))
+            } catch (_: ParseError) {
+            }
         }
 
-        return result
+        return statements
     }
 
 
     // Recursive Descent Grammar
 
+    private fun declaration(): Stmt? {
+        try {
+            if (match(TokenType.VAR)) return varDeclaration()
+            return statement()
+        } catch (error: ParseError) {
+            synchronize()
+            return null
+        }
+    }
+
+    private fun varDeclaration(): Stmt {
+        val name = consume(TokenType.IDENTIFIER, "Expected variable name.")
+        val initializer: Expr? = if (match(TokenType.EQUAL)) {
+            expression()
+        } else {
+            null
+        }
+        consume(TokenType.SEMICOLON, "Expected ';' after variable declaration.")
+        return Stmt.Var(name, initializer)
+    }
+
+    private fun statement(): Stmt {
+        if (match(TokenType.PRINT)) return printStatement()
+        if (match(TokenType.LEFT_BRACE)) return Stmt.Block(block())
+
+        return expressionStatement()
+    }
+
+    private fun printStatement(): Stmt {
+        val value = expression()
+        consume(TokenType.SEMICOLON, "Expected ; after expression.")
+        return Stmt.Print(value)
+    }
+
+    private fun block(): List<Stmt> {
+        val statements: MutableList<Stmt> = ArrayList()
+        while (!check(TokenType.RIGHT_BRACE) && !isAtEnd()) {
+            val decl = declaration()
+            if (decl != null) statements.add(decl)
+        }
+        consume(TokenType.RIGHT_BRACE, "Expected '}' after block.")
+        return statements
+    }
+
+    private fun expressionStatement(): Stmt {
+        val value = expression()
+        consume(TokenType.SEMICOLON, "Expected ; after expression.")
+        return Stmt.Expression(value)
+    }
+
     private fun expression(): Expr {
-        return equality()
+        return assignment()
+    }
+
+    private fun assignment(): Expr {
+        val expr = equality()
+        if (match(TokenType.EQUAL)) {
+            val equals = previous()
+            val value = assignment()
+            if (expr is Expr.Variable) {
+                val name = expr.name
+                return Expr.Assign(name, value)
+            }
+            throw parseError(equals, "Invalid assignment target.")
+        }
+        return expr
     }
 
     /**
@@ -112,11 +184,16 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
             return Expr.Literal(previous().literal)
         }
 
+        if (match(TokenType.IDENTIFIER)) {
+            return Expr.Variable(previous())
+        }
+
         if (match(TokenType.LEFT_PAREN)) {
             val expr = expression()
             consume(TokenType.RIGHT_PAREN, "Expected ')' after expression.")
             return Expr.Grouping(expr)
         }
+
         throw parseError(peek(), "Expected expression.")
     }
 

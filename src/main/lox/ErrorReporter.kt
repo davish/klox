@@ -1,13 +1,10 @@
 data class Location(val line: Int, val col: Int)
 
 fun within(offset: Offset, source: String): Location {
-    if (offset.offset >= source.length) {
-        throw Error("offset should be within the length of the file.")
-    }
     var line = 1
     var col = -1
     for (i in 0..offset.offset) {
-        if (source[i] == '\n') {
+        if (i < source.length && source[i] == '\n') {
             line++
             col = -1
         } else {
@@ -25,7 +22,7 @@ open class LoxError(val position: Position, message: String) : RuntimeException(
         val prefix = "    ${loc.line} | "
         val start = position.start.offset - loc.col
         val newlineIdx = source.indexOf('\n', start)
-        val errorLine = if (newlineIdx >= start) {
+        val errorLine = if (newlineIdx >= start && newlineIdx < source.length) {
             source.substring(start until newlineIdx)
         } else {
             source.substring(start)
@@ -42,28 +39,28 @@ open class LoxError(val position: Position, message: String) : RuntimeException(
 }
 
 class ErrorReporter(private val source: String) {
-    private val parseErrors: MutableList<LoxError> = ArrayList()
-    private val runtimeErrors: MutableList<LoxError> = ArrayList()
+    private val errors: MutableList<LoxError> = ArrayList()
 
     val hadError: Boolean
-        get() = parseErrors.size != 0
+        get() = errors.size != 0
 
-    val hadRuntimeError: Boolean
-        get() = runtimeErrors.size != 0
-
-    fun runtimeError(error: LoxError) {
-        runtimeErrors.add(error)
+    fun error(error: LoxError) {
+        errors.add(error)
     }
 
-    fun parseError(position: Position, message: String) {
-        parseErrors.add(LoxError(position, message))
+    fun error(position: Position, message: String) {
+        errors.add(LoxError(position, message))
+    }
+
+    fun clear() {
+        errors.clear()
     }
 
 
     private fun deduplicateErrors(): List<LoxError> {
         var lastOffset = -2
         val result: MutableList<LoxError> = ArrayList()
-        for (error in parseErrors) {
+        for (error in errors) {
             if (error.position.start.offset > lastOffset + 1) {
                 result.add(error)
             }
