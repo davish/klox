@@ -22,11 +22,23 @@ class Interpreter() {
         }
     }
 
+    class BreakSignal : RuntimeException()
+    class ContinueSignal : RuntimeException()
+
     fun execute(stmt: Stmt): Unit = when (stmt) {
+        is Stmt.Break -> throw BreakSignal()
+        is Stmt.Continue -> throw ContinueSignal()
         is Stmt.Block -> executeBlock(stmt.statements, Environment(environment))
         is Stmt.Expression -> {
             evaluate(stmt.expression)
             Unit
+        }
+
+        is Stmt.If -> if (isTruthy(evaluate(stmt.condition))) {
+            execute(stmt.thenBranch)
+        } else if (stmt.elseBranch != null) {
+            execute(stmt.elseBranch)
+        } else {
         }
 
         is Stmt.Print -> {
@@ -38,6 +50,18 @@ class Interpreter() {
             val value = stmt.initializer?.let { evaluate(it) }
             environment.define(stmt.name.lexeme, value)
         }
+
+        is Stmt.While -> {
+            while (isTruthy(evaluate(stmt.condition))) {
+                try {
+                    execute(stmt.body)
+                } catch (_: BreakSignal) {
+                    break
+                }
+            }
+        }
+
+
     }
 
     private fun stringify(obj: Any?): String = when (obj) {
@@ -78,12 +102,25 @@ class Interpreter() {
 
     private fun evaluate(expr: Expr): Any? = when (expr) {
         is Expr.Literal -> expr.value
+
         is Expr.Grouping -> evaluate(expr.expression)
         is Expr.Variable -> environment.get(expr.name)
         is Expr.Assign -> {
             val value = evaluate(expr.value)
             environment.assign(expr.name, value)
             value
+        }
+
+        is Expr.Logical -> {
+            run(fun(): Any? {
+                val left = evaluate(expr.left)
+                if (expr.operator.type == TokenType.OR) {
+                    if (isTruthy(left)) return left
+                } else if (expr.operator.type == TokenType.AND) {
+                    if (!isTruthy(left)) return left
+                }
+                return evaluate(expr.right)
+            })
         }
 
         is Expr.UnaryOp -> {

@@ -29,6 +29,8 @@ class Scanner(private val source: String, private val reporter: ErrorReporter) {
         "true" to TokenType.TRUE,
         "var" to TokenType.VAR,
         "while" to TokenType.WHILE,
+
+        "break" to TokenType.BREAK,
     )
 
     fun scanTokens(): List<Token> {

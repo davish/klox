@@ -6,12 +6,14 @@ import ast.Stmt
 
 class Parser(private val tokens: List<Token>, private val reporter: ErrorReporter) {
     private var current = 0
+    private var loopDepth = 0
 
     private class ParseError : RuntimeException()
 
     private fun isAtEnd() = peek().type == TokenType.EOF
     private fun peek() = tokens[current]
     private fun previous() = tokens[current - 1]
+    private fun secondPrevious() = tokens[current - 2]
 
     private fun check(type: TokenType): Boolean {
         if (isAtEnd()) return false
@@ -102,16 +104,82 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
     }
 
     private fun statement(): Stmt {
+        if (match(TokenType.BREAK)) return breakStatement()
+        if (match(TokenType.FOR)) return forStatement()
+        if (match(TokenType.IF)) return ifStatement()
         if (match(TokenType.PRINT)) return printStatement()
+        if (match(TokenType.WHILE)) return whileStatement()
         if (match(TokenType.LEFT_BRACE)) return Stmt.Block(block())
 
         return expressionStatement()
+    }
+
+    private fun forStatement(): Stmt {
+        consume(TokenType.LEFT_PAREN, "Expected '(' after 'for'.")
+        val initializer =
+            if (match(TokenType.SEMICOLON)) {
+                null
+            } else if (match(TokenType.VAR)) {
+                varDeclaration()
+            } else {
+                expressionStatement()
+            }
+
+        val condition = if (!check(TokenType.SEMICOLON)) {
+            expression()
+        } else {
+            Expr.Literal(true)
+        }
+        consume(TokenType.SEMICOLON, "Expected ';' after loop condition.")
+
+        val increment = if (!check(TokenType.RIGHT_PAREN)) {
+            expression()
+        } else {
+            null
+        }
+        consume(TokenType.RIGHT_PAREN, "Expected ')' after for clause.")
+
+        loopDepth++
+        var body = statement()
+        loopDepth--
+        if (increment != null) {
+            body = Stmt.Block(listOf(body, Stmt.Expression(increment)))
+        }
+        body = Stmt.While(condition, body)
+        if (initializer != null) {
+            body = Stmt.Block(listOf(initializer, body))
+        }
+
+        return body
+    }
+
+    private fun ifStatement(): Stmt {
+        consume(TokenType.LEFT_PAREN, "Expected '(' after if.")
+        val condition = expression()
+        consume(TokenType.RIGHT_PAREN, "Expected ') after condition")
+        val thenBranch = statement()
+        val elseBranch = if (match(TokenType.ELSE)) {
+            statement()
+        } else {
+            null
+        }
+        return Stmt.If(condition, thenBranch, elseBranch)
     }
 
     private fun printStatement(): Stmt {
         val value = expression()
         consume(TokenType.SEMICOLON, "Expected ; after expression.")
         return Stmt.Print(value)
+    }
+
+    private fun whileStatement(): Stmt {
+        consume(TokenType.LEFT_PAREN, "Expected '(' after 'while'.")
+        val condition = expression()
+        consume(TokenType.RIGHT_PAREN, "Expected ')' after condition.")
+        loopDepth++
+        val body = statement()
+        loopDepth--
+        return Stmt.While(condition, body)
     }
 
     private fun block(): List<Stmt> {
@@ -130,12 +198,20 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
         return Stmt.Expression(value)
     }
 
+    private fun breakStatement(): Stmt {
+        if (loopDepth < 1) {
+            parseError(previous(), "Can only use break statement within a loop.")
+        }
+        consume(TokenType.SEMICOLON, "Expected ; after break.")
+        return Stmt.Break(secondPrevious())
+    }
+
     private fun expression(): Expr {
         return assignment()
     }
 
     private fun assignment(): Expr {
-        val expr = equality()
+        val expr = or()
         if (match(TokenType.EQUAL)) {
             val equals = previous()
             val value = assignment()
@@ -151,21 +227,33 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
     /**
      * Helper function to generate a precedence class for left-associative binary operators.
      */
-    private fun binaryOp(higher: () -> Expr, vararg tokens: TokenType) = fun(): Expr {
-        var expr = higher()
-        while (match(*tokens)) {
-            val operator = previous()
-            val right = higher()
-            expr = Expr.BinaryOp(expr, operator, right)
+    private fun leftAssociative(con: (Expr, Token, Expr) -> Expr, higher: () -> Expr, vararg tokens: TokenType) =
+        fun(): Expr {
+            var expr = higher()
+            while (match(*tokens)) {
+                val operator = previous()
+                val right = higher()
+                expr = con(expr, operator, right)
+            }
+            return expr
         }
-        return expr
-    }
 
-    private val equality = binaryOp({ comparison() }, TokenType.BANG_EQUAL, TokenType.EQUAL_EQUAL)
+    private val or = leftAssociative(Expr::Logical, { and() }, TokenType.OR)
+    private val and = leftAssociative(Expr::Logical, { equality() }, TokenType.AND)
+
+    private val equality =
+        leftAssociative(Expr::BinaryOp, { comparison() }, TokenType.BANG_EQUAL, TokenType.EQUAL_EQUAL)
     private val comparison =
-        binaryOp({ term() }, TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESS, TokenType.LESS_EQUAL)
-    private val term = binaryOp({ factor() }, TokenType.MINUS, TokenType.PLUS)
-    private val factor = binaryOp({ unary() }, TokenType.STAR, TokenType.SLASH)
+        leftAssociative(
+            Expr::BinaryOp,
+            { term() },
+            TokenType.GREATER,
+            TokenType.GREATER_EQUAL,
+            TokenType.LESS,
+            TokenType.LESS_EQUAL
+        )
+    private val term = leftAssociative(Expr::BinaryOp, { factor() }, TokenType.MINUS, TokenType.PLUS)
+    private val factor = leftAssociative(Expr::BinaryOp, { unary() }, TokenType.STAR, TokenType.SLASH)
     private fun unary(): Expr {
         if (match(TokenType.BANG, TokenType.MINUS)) {
             val operator = previous()

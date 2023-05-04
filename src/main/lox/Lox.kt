@@ -55,7 +55,6 @@ private fun runFile(path: String) {
     run(source, interpreter, parseReporter, runtimeReporter)
     if (parseReporter.hadError) exitProcess(65)
     if (runtimeReporter.hadError) exitProcess(70)
-
 }
 
 private fun runPrompt() {

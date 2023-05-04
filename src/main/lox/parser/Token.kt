@@ -20,6 +20,9 @@ enum class TokenType {
     AND, CLASS, ELSE, FALSE, FUN, FOR, IF, NIL, OR,
     PRINT, RETURN, SUPER, THIS, TRUE, VAR, WHILE,
 
+    // Bonus Challenges.
+    BREAK,
+
     EOF
 }
 
