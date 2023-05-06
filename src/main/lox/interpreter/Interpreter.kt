@@ -60,8 +60,6 @@ class Interpreter() {
                 }
             }
         }
-
-
     }
 
     private fun stringify(obj: Any?): String = when (obj) {
