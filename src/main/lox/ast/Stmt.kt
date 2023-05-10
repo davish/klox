@@ -9,6 +9,5 @@ sealed interface Stmt {
     class Print(val expression: Expr) : Stmt
     class Var(val name: Token, val initializer: Expr?) : Stmt
     class While(val condition: Expr, val body: Stmt) : Stmt
-    class Break(val token: Token) : Stmt
-    class Continue(val token: Token) : Stmt
+    object Break : Stmt
 }

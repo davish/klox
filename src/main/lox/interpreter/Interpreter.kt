@@ -23,11 +23,9 @@ class Interpreter() {
     }
 
     class BreakSignal : RuntimeException()
-    class ContinueSignal : RuntimeException()
 
     fun execute(stmt: Stmt): Unit = when (stmt) {
         is Stmt.Break -> throw BreakSignal()
-        is Stmt.Continue -> throw ContinueSignal()
         is Stmt.Block -> executeBlock(stmt.statements, Environment(environment))
         is Stmt.Expression -> {
             evaluate(stmt.expression)

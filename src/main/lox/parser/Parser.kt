@@ -13,7 +13,6 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
     private fun isAtEnd() = peek().type == TokenType.EOF
     private fun peek() = tokens[current]
     private fun previous() = tokens[current - 1]
-    private fun secondPrevious() = tokens[current - 2]
 
     private fun check(type: TokenType): Boolean {
         if (isAtEnd()) return false
@@ -203,7 +202,7 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
             parseError(previous(), "Can only use break statement within a loop.")
         }
         consume(TokenType.SEMICOLON, "Expected ; after break.")
-        return Stmt.Break(secondPrevious())
+        return Stmt.Break
     }
 
     private fun expression(): Expr {
