@@ -10,7 +10,19 @@ import parser.TokenType
 
 class Interpreter() {
     var reporter: ErrorReporter = ErrorReporter("")
-    private var environment = Environment()
+    val globals = Environment()
+    private var environment = globals
+
+    init {
+        globals.define("clock", object : LoxCallable {
+            override fun call(interpreter: Interpreter, arguments: List<Any?>): Any? {
+                return System.currentTimeMillis().toDouble() / 1000.0
+            }
+
+            override val arity: Int
+                get() = 0
+        })
+    }
 
     fun interpret(statements: List<Stmt>) {
         try {
@@ -23,6 +35,7 @@ class Interpreter() {
     }
 
     class BreakSignal : RuntimeException()
+    class Return(val value: Any?) : RuntimeException(null, null, false, false)
 
     fun execute(stmt: Stmt): Unit = when (stmt) {
         is Stmt.Break -> throw BreakSignal()
@@ -30,6 +43,11 @@ class Interpreter() {
         is Stmt.Expression -> {
             evaluate(stmt.expression)
             Unit
+        }
+
+        is Stmt.Function -> {
+            val function = LoxFunction(stmt, environment)
+            environment.define(stmt.name.lexeme, function)
         }
 
         is Stmt.If -> if (isTruthy(evaluate(stmt.condition))) {
@@ -42,6 +60,15 @@ class Interpreter() {
         is Stmt.Print -> {
             val value = evaluate(stmt.expression)
             println(stringify(value))
+        }
+
+        is Stmt.Return -> {
+            val value = if (stmt.value != null) {
+                evaluate(stmt.value)
+            } else {
+                null
+            }
+            throw Return(value)
         }
 
         is Stmt.Var -> {
@@ -74,7 +101,7 @@ class Interpreter() {
         else -> obj.toString()
     }
 
-    private fun executeBlock(statements: List<Stmt>, environment: Environment) {
+    fun executeBlock(statements: List<Stmt>, environment: Environment) {
         val previous = this.environment
         try {
             this.environment = environment
@@ -98,6 +125,20 @@ class Interpreter() {
 
     private fun evaluate(expr: Expr): Any? = when (expr) {
         is Expr.Literal -> expr.value
+        is Expr.Call -> {
+            val arguments: MutableList<Any?> = ArrayList()
+            for (argument in expr.arguments) {
+                arguments.add(evaluate(argument))
+            }
+            val function = evaluate(expr.callee)
+            if (function !is LoxCallable) {
+                throw RuntimeError(expr.paren, "Can only call functions and classes.")
+            }
+            if (arguments.size != function.arity) {
+                throw RuntimeError(expr.paren, "Expected ${function.arity} arguments ")
+            }
+            function.call(this, arguments)
+        }
 
         is Expr.Grouping -> evaluate(expr.expression)
         is Expr.Variable -> environment.get(expr.name)
