@@ -58,21 +58,24 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
     }
 
     fun parse(): List<Stmt> {
-        val statements: MutableList<Stmt> = ArrayList()
+        // Try to parse an expression on its own If parsing is successful and we're at the end of the file,
+        // return that one expression. Otherwise, reset and parse statements.
+        try {
+            val expr = expression()
+            if (isAtEnd()) {
+                return listOf(Stmt.Expression(expr))
+            }
+        } catch (_: ParseError) {
 
+        } finally {
+            reporter.clear()
+            current = 0
+        }
+
+        val statements: MutableList<Stmt> = ArrayList()
         while (!isAtEnd()) {
             val decl = declaration()
             if (decl != null) statements.add(decl)
-        }
-
-        if (statements.isEmpty()) {
-            reporter.clear()
-            current = 0
-            try {
-                val expr = expression()
-                statements.add(Stmt.Expression(expr))
-            } catch (_: ParseError) {
-            }
         }
 
         return statements
@@ -233,7 +236,7 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
 
     private fun breakStatement(): Stmt {
         if (loopDepth < 1) {
-            parseError(previous(), "Can only use break statement within a loop.")
+            reporter.error(previous().position, "Can only use break statement within a loop.")
         }
         consume(TokenType.SEMICOLON, "Expected ; after break.")
         return Stmt.Break
@@ -339,6 +342,27 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
             val expr = expression()
             consume(TokenType.RIGHT_PAREN, "Expected ')' after expression.")
             return Expr.Grouping(expr)
+        }
+
+        if (match(TokenType.FUN)) {
+            val name = previous()
+            consume(TokenType.LEFT_PAREN, "Expect '(' after 'fun' keyword.")
+            val parameters: MutableList<Token> = ArrayList()
+            if (!check(TokenType.RIGHT_PAREN)) {
+                do {
+                    if (parameters.size >= 255) {
+                        reporter.error(peek().position, "Can't have more than 255 parameters.");
+                    }
+
+                    parameters.add(
+                        consume(TokenType.IDENTIFIER, "Expect parameter name.")
+                    )
+                } while (match(TokenType.COMMA))
+            }
+            consume(TokenType.RIGHT_PAREN, "Expect ')' after parameters.")
+            consume(TokenType.LEFT_BRACE, "Expect '{' before lambda body.")
+            val body = block()
+            return Expr.Lambda(name, parameters, body)
         }
 
         throw parseError(peek(), "Expected expression.")

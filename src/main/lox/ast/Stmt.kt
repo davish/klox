@@ -5,7 +5,9 @@ import parser.Token
 sealed interface Stmt {
     class Block(val statements: List<Stmt>) : Stmt
     class Expression(val expression: Expr) : Stmt
-    class Function(val name: Token, val params: List<Token>, val body: List<Stmt>) : Stmt
+    class Function(override val name: Token, override val params: List<Token>, override val body: List<Stmt>) : Stmt,
+        ast.Function
+
     class If(val condition: Expr, val thenBranch: Stmt, val elseBranch: Stmt?) : Stmt
     class Print(val expression: Expr) : Stmt
     class Return(val keyword: Token, val value: Expr?) : Stmt

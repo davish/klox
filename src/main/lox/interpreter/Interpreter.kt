@@ -12,6 +12,7 @@ class Interpreter() {
     var reporter: ErrorReporter = ErrorReporter("")
     val globals = Environment()
     private var environment = globals
+    private val locals: MutableMap<Expr, Int> = hashMapOf()
 
     init {
         globals.define("clock", object : LoxCallable {
@@ -22,6 +23,10 @@ class Interpreter() {
             override val arity: Int
                 get() = 0
         })
+    }
+
+    fun resolve(expr: Expr, depth: Int) {
+        locals[expr] = depth
     }
 
     fun interpret(statements: List<Stmt>) {
@@ -141,11 +146,20 @@ class Interpreter() {
         }
 
         is Expr.Grouping -> evaluate(expr.expression)
-        is Expr.Variable -> environment.get(expr.name)
+        is Expr.Variable -> lookupVariable(expr.name, expr)
         is Expr.Assign -> {
             val value = evaluate(expr.value)
-            environment.assign(expr.name, value)
+            val distance = locals[expr]
+            if (distance != null) {
+                environment.assignAt(distance, expr.name, value)
+            } else {
+                globals.assign(expr.name, value)
+            }
             value
+        }
+
+        is Expr.Lambda -> {
+            LoxFunction(expr, environment)
         }
 
         is Expr.Logical -> {
@@ -228,6 +242,15 @@ class Interpreter() {
 
                 else -> null
             }
+        }
+    }
+
+    private fun lookupVariable(name: Token, expr: Expr): Any? {
+        val distance = locals[expr]
+        return if (distance != null) {
+            environment.getAt(distance, name.lexeme)
+        } else {
+            globals.get(name)
         }
     }
 

@@ -1,8 +1,8 @@
 package interpreter
 
-import ast.Stmt
+import ast.Function
 
-class LoxFunction(private val declaration: Stmt.Function, private val closure: Environment) : LoxCallable {
+class LoxFunction(private val declaration: Function, private val closure: Environment) : LoxCallable {
 
     override fun call(interpreter: Interpreter, arguments: List<Any?>): Any? {
         val environment = Environment(closure)

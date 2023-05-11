@@ -1,3 +1,4 @@
+import analysis.Resolver
 import ast.Stmt
 import interpreter.Interpreter
 import parser.Parser
@@ -20,7 +21,13 @@ fun main(args: Array<String>) {
     }
 }
 
-private fun run(src: String, interpreter: Interpreter, parseReporter: ErrorReporter, runtimeReporter: ErrorReporter) {
+private fun run(
+    src: String,
+    interpreter: Interpreter,
+    parseReporter: ErrorReporter,
+    runtimeReporter: ErrorReporter,
+    semanticReporter: ErrorReporter
+) {
     /// Lexing
     val scanner = Scanner(src, parseReporter)
     val tokens = scanner.scanTokens()
@@ -33,8 +40,15 @@ private fun run(src: String, interpreter: Interpreter, parseReporter: ErrorRepor
     parseReporter.printAllErrors()
     if (parseReporter.hadError) return
 
-    interpreter.reporter = runtimeReporter
+    /// Semantic Analysis
+    interpreter.reporter = semanticReporter
+    val resolver = Resolver(interpreter, semanticReporter)
+    resolver.resolve(statements)
+    semanticReporter.printAllErrors()
+    if (semanticReporter.hadError) return
+
     /// Interpret!
+    interpreter.reporter = runtimeReporter
     if (statements.size == 1 && statements[0] is Stmt.Expression) {
         statements[0].also {
             if (it is Stmt.Expression) {
@@ -52,7 +66,8 @@ private fun runFile(path: String) {
     val interpreter = Interpreter()
     val parseReporter = ErrorReporter(source)
     val runtimeReporter = ErrorReporter(source)
-    run(source, interpreter, parseReporter, runtimeReporter)
+    val semanticReporter = ErrorReporter(source)
+    run(source, interpreter, parseReporter, runtimeReporter, semanticReporter)
     if (parseReporter.hadError) exitProcess(65)
     if (runtimeReporter.hadError) exitProcess(70)
 }
@@ -68,6 +83,7 @@ private fun runPrompt() {
         }
         val parseReporter = ErrorReporter(line)
         val runtimeReporter = ErrorReporter(line)
-        run(line, interpreter, parseReporter, runtimeReporter)
+        val semanticReporter = ErrorReporter(line)
+        run(line, interpreter, parseReporter, runtimeReporter, semanticReporter)
     }
 }
