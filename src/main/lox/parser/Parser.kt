@@ -86,6 +86,7 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
 
     private fun declaration(): Stmt? {
         try {
+            if (match(TokenType.CLASS)) return classDeclaration()
             if (match(TokenType.FUN)) return functionDeclaration("function")
             if (match(TokenType.VAR)) return varDeclaration()
             return statement()
@@ -95,9 +96,20 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
         }
     }
 
+    private fun classDeclaration(): Stmt.Class {
+        val name = consume(TokenType.IDENTIFIER, "Expected class name.")
+        consume(TokenType.LEFT_BRACE, "Expected '{' after class name.")
+        val methods: MutableList<Stmt.Function> = mutableListOf()
+        while (!check(TokenType.RIGHT_BRACE) && !isAtEnd()) {
+            methods.add(functionDeclaration("method"))
+        }
+        consume(TokenType.RIGHT_BRACE, "Expected '}' after class body.")
+        return Stmt.Class(name, methods)
+    }
+
     private fun functionDeclaration(kind: String): Stmt.Function {
-        val name = consume(TokenType.IDENTIFIER, "Expect $kind name.")
-        consume(TokenType.LEFT_PAREN, "Expect '(' after $kind name.")
+        val name = consume(TokenType.IDENTIFIER, "Expected $kind name.")
+        consume(TokenType.LEFT_PAREN, "Expected '(' after $kind name.")
         val parameters: MutableList<Token> = ArrayList()
         if (!check(TokenType.RIGHT_PAREN)) {
             do {
@@ -254,6 +266,8 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
             if (expr is Expr.Variable) {
                 val name = expr.name
                 return Expr.Assign(name, value)
+            } else if (expr is Expr.Get) {
+                return Expr.Set(expr.obj, expr.name, value)
             }
             throw parseError(equals, "Invalid assignment target.")
         }
@@ -304,6 +318,9 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
         while (true) {
             if (match(TokenType.LEFT_PAREN)) {
                 expr = finishCall(expr)
+            } else if (match(TokenType.DOT)) {
+                val name = consume(TokenType.IDENTIFIER, "Expected property name after '.'.")
+                expr = Expr.Get(expr, name)
             } else {
                 break;
             }
@@ -333,6 +350,8 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
         if (match(TokenType.NUMBER, TokenType.STRING)) {
             return Expr.Literal(previous().literal)
         }
+
+        if (match(TokenType.THIS)) return Expr.This(previous())
 
         if (match(TokenType.IDENTIFIER)) {
             return Expr.Variable(previous())

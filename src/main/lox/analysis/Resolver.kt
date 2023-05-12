@@ -10,11 +10,19 @@ import java.util.*
 class Resolver(val interpreter: Interpreter, val reporter: ErrorReporter) {
     private enum class FunctionType {
         NONE,
-        FUNCTION
+        FUNCTION,
+        METHOD,
+        INITIALIZER,
+    }
+
+    private enum class ClassType {
+        NONE,
+        CLASS
     }
 
     private val scopes: Stack<MutableMap<String, Boolean>> = Stack()
     private var currentFunction = FunctionType.NONE
+    private var currentClass = ClassType.NONE
 
     private fun beginScope() {
         scopes.push(hashMapOf())
@@ -46,6 +54,26 @@ class Resolver(val interpreter: Interpreter, val reporter: ErrorReporter) {
             endScope()
         }
 
+        is Stmt.Class -> {
+            val enclosingClass = currentClass
+            currentClass = ClassType.CLASS
+            declare(stmt.name)
+            beginScope()
+            scopes.peek()["this"] = true
+
+            stmt.methods.forEach {
+                var declaration = FunctionType.METHOD
+                if (it.name.lexeme == "init") {
+                    declaration = FunctionType.INITIALIZER;
+                }
+                resolveFunction(it, declaration)
+            }
+
+            endScope()
+            currentClass = enclosingClass
+            define(stmt.name)
+        }
+
         is Stmt.Var -> {
             declare(stmt.name)
             if (stmt.initializer != null) {
@@ -73,7 +101,12 @@ class Resolver(val interpreter: Interpreter, val reporter: ErrorReporter) {
             if (currentFunction == FunctionType.NONE) {
                 reporter.error(stmt.keyword.position, "Can't return from top-level code.")
             }
-            if (stmt.value != null) resolve(stmt.value) else Unit
+            if (stmt.value != null) {
+                if (currentFunction == FunctionType.INITIALIZER) {
+                    reporter.error(stmt.keyword.position, "Can't return a value from an initializer.")
+                }
+                resolve(stmt.value)
+            } else Unit
         }
 
         is Stmt.While -> {
@@ -121,11 +154,24 @@ class Resolver(val interpreter: Interpreter, val reporter: ErrorReporter) {
             expr.arguments.forEach(::resolve)
         }
 
+        is Expr.Get -> resolve(expr.obj)
         is Expr.Grouping -> resolve(expr.expression)
         is Expr.Literal -> Unit
         is Expr.Logical -> {
             resolve(expr.left)
             resolve(expr.right)
+        }
+
+        is Expr.This -> {
+            if (currentClass == ClassType.NONE) {
+                reporter.error(expr.keyword.position, "Cannot use 'this' outside of a class.")
+            }
+            resolveLocal(expr, expr.keyword)
+        }
+
+        is Expr.Set -> {
+            resolve(expr.value)
+            resolve(expr.obj)
         }
 
         is Expr.UnaryOp -> resolve(expr.right)

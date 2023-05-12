@@ -45,13 +45,22 @@ class Interpreter() {
     fun execute(stmt: Stmt): Unit = when (stmt) {
         is Stmt.Break -> throw BreakSignal()
         is Stmt.Block -> executeBlock(stmt.statements, Environment(environment))
+        is Stmt.Class -> {
+            // Defining the identifier first allows references to the class from inside its methods.
+            environment.define(stmt.name.lexeme, null)
+            val methods =
+                stmt.methods.associate { it.name.lexeme to LoxFunction(it, environment, it.name.lexeme == "init") }
+            val klass = LoxClass(stmt.name.lexeme, methods)
+            environment.assign(stmt.name, klass)
+        }
+
         is Stmt.Expression -> {
             evaluate(stmt.expression)
             Unit
         }
 
         is Stmt.Function -> {
-            val function = LoxFunction(stmt, environment)
+            val function = LoxFunction(stmt, environment, false)
             environment.define(stmt.name.lexeme, function)
         }
 
@@ -145,7 +154,26 @@ class Interpreter() {
             function.call(this, arguments)
         }
 
+        is Expr.Get -> {
+            val obj = evaluate(expr.obj)
+            if (obj !is LoxInstance) {
+                throw RuntimeError(expr.name, "Only instances have properties.")
+            }
+            obj.get(expr.name)
+        }
+
+        is Expr.Set -> {
+            val obj = evaluate(expr.obj)
+            if (obj !is LoxInstance) {
+                throw RuntimeError(expr.name, "Only instances have fields.")
+            }
+            val value = evaluate(expr.value)
+            obj.set(expr.name, value)
+            value
+        }
+
         is Expr.Grouping -> evaluate(expr.expression)
+        is Expr.This -> lookupVariable(expr.keyword, expr)
         is Expr.Variable -> lookupVariable(expr.name, expr)
         is Expr.Assign -> {
             val value = evaluate(expr.value)
@@ -159,7 +187,7 @@ class Interpreter() {
         }
 
         is Expr.Lambda -> {
-            LoxFunction(expr, environment)
+            LoxFunction(expr, environment, false)
         }
 
         is Expr.Logical -> {
