@@ -17,7 +17,8 @@ class Resolver(val interpreter: Interpreter, val reporter: ErrorReporter) {
 
     private enum class ClassType {
         NONE,
-        CLASS
+        CLASS,
+        SUBCLASS,
     }
 
     private val scopes: Stack<MutableMap<String, Boolean>> = Stack()
@@ -58,6 +59,18 @@ class Resolver(val interpreter: Interpreter, val reporter: ErrorReporter) {
             val enclosingClass = currentClass
             currentClass = ClassType.CLASS
             declare(stmt.name)
+            define(stmt.name)
+            if (stmt.superclass != null) {
+                currentClass = ClassType.SUBCLASS
+                if (stmt.name.lexeme == stmt.superclass.name.lexeme) {
+                    reporter.error(stmt.superclass.name.position, "A class cannot inherit from itself.")
+                }
+                resolve(stmt.superclass)
+            }
+            if (stmt.superclass != null) {
+                beginScope()
+                scopes.peek()["super"] = true
+            }
             beginScope()
             scopes.peek()["this"] = true
 
@@ -69,9 +82,10 @@ class Resolver(val interpreter: Interpreter, val reporter: ErrorReporter) {
                 resolveFunction(it, declaration)
             }
 
+            if (stmt.superclass != null) endScope()
+
             endScope()
             currentClass = enclosingClass
-            define(stmt.name)
         }
 
         is Stmt.Var -> {
@@ -160,6 +174,19 @@ class Resolver(val interpreter: Interpreter, val reporter: ErrorReporter) {
         is Expr.Logical -> {
             resolve(expr.left)
             resolve(expr.right)
+        }
+
+        is Expr.Super -> {
+            when (currentClass) {
+                ClassType.NONE -> reporter.error(expr.keyword.position, "Can't use 'super' outside of a class.")
+                ClassType.CLASS -> reporter.error(
+                    expr.keyword.position,
+                    "Can't use 'super' in a class with no superclass."
+                )
+
+                else -> {}
+            }
+            resolveLocal(expr, expr.keyword)
         }
 
         is Expr.This -> {

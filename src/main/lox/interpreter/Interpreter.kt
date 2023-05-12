@@ -48,9 +48,25 @@ class Interpreter() {
         is Stmt.Class -> {
             // Defining the identifier first allows references to the class from inside its methods.
             environment.define(stmt.name.lexeme, null)
+            val superclass = if (stmt.superclass != null) {
+                evaluate(stmt.superclass)
+            } else null
+
+            if (superclass !is LoxClass?) {
+                throw RuntimeError(stmt.superclass?.name ?: stmt.name, "Superclass must be a class.")
+            }
+
+            if (superclass != null) {
+                environment = Environment(environment)
+                environment.define("super", superclass)
+            }
+
             val methods =
                 stmt.methods.associate { it.name.lexeme to LoxFunction(it, environment, it.name.lexeme == "init") }
-            val klass = LoxClass(stmt.name.lexeme, methods)
+            val klass = LoxClass(stmt.name.lexeme, superclass, methods)
+            if (superclass != null) {
+                environment = environment.enclosing ?: globals
+            }
             environment.assign(stmt.name, klass)
         }
 
@@ -160,6 +176,27 @@ class Interpreter() {
                 throw RuntimeError(expr.name, "Only instances have properties.")
             }
             obj.get(expr.name)
+        }
+
+        is Expr.Super -> {
+            val distance = locals[expr] ?: throw RuntimeError(expr.keyword, "'super' not defined in this scope.")
+            val superclass = environment.getAt(distance, "super")
+            if (superclass !is LoxClass) {
+                throw RuntimeError(expr.keyword, "'super' is not a class.")
+            }
+            val obj = environment.getAt(distance - 1, "this") ?: throw RuntimeError(
+                expr.keyword,
+                "'super' was not called in a class."
+            )
+
+            if (obj !is LoxInstance) {
+                throw RuntimeError(expr.keyword, "'super' does not have an instance.")
+            }
+
+            val method = superclass.findMethod(expr.method.lexeme)
+                ?: throw RuntimeError(expr.method, "Undefined property ${expr.method.lexeme}")
+
+            method.bind(obj)
         }
 
         is Expr.Set -> {

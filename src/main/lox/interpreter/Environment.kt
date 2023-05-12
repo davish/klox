@@ -2,7 +2,7 @@ package interpreter
 
 import parser.Token
 
-class Environment(private val enclosing: Environment?) {
+class Environment(val enclosing: Environment?) {
     constructor() : this(null)
 
     private val values: MutableMap<String, Any?> = HashMap()

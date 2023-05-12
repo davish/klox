@@ -98,13 +98,18 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
 
     private fun classDeclaration(): Stmt.Class {
         val name = consume(TokenType.IDENTIFIER, "Expected class name.")
+        val superclass = if (match(TokenType.LESS)) {
+            consume(TokenType.IDENTIFIER, "Expected superclass name after '<'.")
+            Expr.Variable(previous())
+        } else null
+
         consume(TokenType.LEFT_BRACE, "Expected '{' after class name.")
         val methods: MutableList<Stmt.Function> = mutableListOf()
         while (!check(TokenType.RIGHT_BRACE) && !isAtEnd()) {
             methods.add(functionDeclaration("method"))
         }
         consume(TokenType.RIGHT_BRACE, "Expected '}' after class body.")
-        return Stmt.Class(name, methods)
+        return Stmt.Class(name, superclass, methods)
     }
 
     private fun functionDeclaration(kind: String): Stmt.Function {
@@ -351,6 +356,12 @@ class Parser(private val tokens: List<Token>, private val reporter: ErrorReporte
             return Expr.Literal(previous().literal)
         }
 
+        if (match(TokenType.SUPER)) {
+            val keyword = previous()
+            consume(TokenType.DOT, "Expected '.' after 'super'.")
+            val method = consume(TokenType.IDENTIFIER, "Expect superclass method name.")
+            return Expr.Super(keyword, method)
+        }
         if (match(TokenType.THIS)) return Expr.This(previous())
 
         if (match(TokenType.IDENTIFIER)) {

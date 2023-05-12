@@ -14,6 +14,7 @@ sealed interface Expr {
     class Literal(val value: Any?) : Expr
     class Logical(val left: Expr, val operator: Token, val right: Expr) : Expr
     class Set(val obj: Expr, val name: Token, val value: Expr) : Expr
+    class Super(val keyword: Token, val method: Token) : Expr
     class This(val keyword: Token) : Expr
     class Variable(val name: Token) : Expr
     class UnaryOp(val operator: Token, val right: Expr) : Expr
